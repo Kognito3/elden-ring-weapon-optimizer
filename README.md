@@ -1,25 +1,31 @@
 # Elden Ring Weapon Optimizer
 
-Interactive stat-allocation visualiser and optimizer for Elden Ring weapons.
+Early interactive foundation for a graphical Elden Ring weapon/stat optimizer.
 
-## Current status — v0.1 foundation
+## Current v0.2 foundation
 
-The UI and optimization engine are functional, including:
+- React + TypeScript + Vite
+- Starting class stat floors (Wretch is the default)
+- Vertical stat editor with click-to-select offensive graph axes
+- Weapon, affinity and upgrade selection
+- Weapon AR / unique-skill optimization modes
+- Two-handing support
+- Equipment/stat-boost hooks
+- One-click “meet weapon requirements”
+- Two graph views:
+  - **From my current build** — reachable stat space from entered stats plus N points
+  - **Full 1–99 stat map** — the complete two-stat surface, with the same budget line overlaid
+- Requirements-unmet cells are grey/hatched and excluded from the valid colour scale
+- Affinity-aware, luminance-heavy heatmap palette designed to be easier to read with colour-vision deficiencies
+- Hoverable allocation points and exact outputs
+- Mathematical optimum highlighted on the current point-budget line
+- Optimal spread includes non-axis weapon requirements
+- DLC source badge hooks
+- Main-path and Shadow of the Erdtree boss quick-select UI
 
-- starting-class stat floors (Wretch default)
-- all eight character-stat inputs
-- weapon / affinity / upgrade selection
-- weapon-AR vs unique-skill optimization mode
-- selectable X/Y offensive-stat axes with recommended axes
-- stat-boosting equipment inputs
-- two-handing toggle
-- fixed distributable-point budget
-- interactive AR heatmap and legal-allocation line
-- exhaustive mathematical best split for the selected two stats
-- base-game main-route and Shadow of the Erdtree boss quick-select UI
-- DLC provenance badge infrastructure
+## Important
 
-**Important:** the small weapon dataset in this initial foundation build uses demo values so the interface and optimizer can be developed before importing a complete regulation-derived dataset. Displayed AR/skill values are therefore not yet authoritative in-game values.
+The UI and optimization flow are functional, but the current small weapon dataset uses **demo values**. The next major data pass is to replace those with regulation-derived weapon/affinity data and exact CalcCorrectGraph curves, followed by verified skill and enemy damage models.
 
 ## Run locally
 
@@ -28,22 +34,10 @@ npm install
 npm run dev
 ```
 
-Then open the local URL printed by Vite.
+Open the local URL Vite prints in the terminal (normally `http://localhost:5173`).
 
-## Production build
+## Build
 
 ```bash
 npm run build
 ```
-
-## Planned next stages
-
-1. Integrate a complete, versioned Elden Ring weapon/affinity dataset and exact CalcCorrectGraph scaling.
-2. Add verified skill formulas/motion values with weapon-vs-skill optimization.
-3. Add enemy defence/negation presets and real-damage optimization.
-4. Expand stat-modifying equipment and DLC provenance tracking.
-5. Add shareable build URLs and GitHub Pages deployment.
-
-## Third-party work
-
-The exact-data/calculation pass is intended to build on MIT-licensed open-source Elden Ring calculator work with attribution retained in this repository. No third-party source code has been copied into this foundation build yet.

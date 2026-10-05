@@ -1,16 +1,27 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Heatmap from './components/Heatmap';
 import { startingClasses } from './data/classes';
 import { equipmentBonuses } from './data/equipment';
 import { weapons } from './data/weapons';
 import { bossPresets } from './data/bosses';
-import { allocationLine, effectiveStats, heatmap, recommendAxes, type OptimizeMode } from './engine/optimizer';
+import {
+  allocationLine,
+  currentBuildHeatmap,
+  effectiveStats,
+  fullStatHeatmap,
+  meetsRequirements,
+  recommendAxes,
+  type GraphMode,
+  type OptimizeMode,
+} from './engine/optimizer';
 import type { OffensiveStat, Stat, Stats } from './types';
 
 const statOrder: Stat[] = ['vig', 'mnd', 'end', 'str', 'dex', 'int', 'fai', 'arc'];
 const offensiveStats: OffensiveStat[] = ['str', 'dex', 'int', 'fai', 'arc'];
 const labels: Record<Stat, string> = { vig: 'VIG', mnd: 'MND', end: 'END', str: 'STR', dex: 'DEX', int: 'INT', fai: 'FAI', arc: 'ARC' };
 const rawInitial: Stats = { vig: 1, mnd: 1, end: 1, str: 1, dex: 1, int: 1, fai: 1, arc: 1 };
+
+type AxisHistory = [OffensiveStat, OffensiveStat];
 
 export default function App() {
   const [classId, setClassId] = useState('wretch');
@@ -22,12 +33,12 @@ export default function App() {
   const variant = weapon.variants.find((v) => v.affinity === affinity) ?? weapon.variants[0];
   const [upgrade, setUpgrade] = useState(weapon.maxUpgrade);
   const [mode, setMode] = useState<OptimizeMode>('weapon');
+  const [graphMode, setGraphMode] = useState<GraphMode>('current');
   const [twoHanded, setTwoHanded] = useState(false);
   const [equipment, setEquipment] = useState<string[]>([]);
   const [pointsAvailable, setPointsAvailable] = useState(40);
   const suggested = recommendAxes(mode === 'skill' && weapon.skill ? weapon.skill.scaling : variant.scaling);
-  const [axisX, setAxisX] = useState<OffensiveStat>(suggested[0] ?? 'str');
-  const [axisY, setAxisY] = useState<OffensiveStat>(suggested[1] ?? 'dex');
+  const [axisHistory, setAxisHistory] = useState<AxisHistory>(() => axisPair(suggested));
   const [bossId, setBossId] = useState('margit');
 
   const bonuses = useMemo(() => {
@@ -41,12 +52,26 @@ export default function App() {
     return total;
   }, [equipment]);
 
+  const [axisX, axisY] = useMemo(() => {
+    const ordered = [...axisHistory].sort((a, b) => statOrder.indexOf(a) - statOrder.indexOf(b));
+    return ordered as AxisHistory;
+  }, [axisHistory]);
+
   const effective = effectiveStats(stats, bonuses);
   const currentRuneLevel = selectedClass.runeLevel + statOrder.reduce((sum, stat) => sum + Math.max(0, stats[stat] - selectedClass.stats[stat]), 0);
   const graphInput = { stats: effective, axisX, axisY, pointsAvailable, variant, skill: weapon.skill, mode, upgrade, maxUpgrade: weapon.maxUpgrade, twoHanded };
-  const line = useMemo(() => allocationLine(graphInput), [effective, axisX, axisY, pointsAvailable, variant, weapon.skill, mode, upgrade, weapon.maxUpgrade, twoHanded]);
-  const map = useMemo(() => heatmap(graphInput), [effective, axisX, axisY, pointsAvailable, variant, weapon.skill, mode, upgrade, weapon.maxUpgrade, twoHanded]);
-  const best = line.reduce<(typeof line)[number] | null>((acc, point) => (!acc || point.value > acc.value ? point : acc), null);
+  const line = useMemo(
+    () => allocationLine(graphInput),
+    [effective, axisX, axisY, pointsAvailable, variant, weapon.skill, mode, upgrade, weapon.maxUpgrade, twoHanded],
+  );
+  const map = useMemo(
+    () => graphMode === 'full' ? fullStatHeatmap(graphInput) : currentBuildHeatmap(graphInput),
+    [graphMode, effective, axisX, axisY, pointsAvailable, variant, weapon.skill, mode, upgrade, weapon.maxUpgrade, twoHanded],
+  );
+  const best = line
+    .filter((point) => point.valid)
+    .reduce<(typeof line)[number] | null>((acc, point) => (!acc || point.value > acc.value ? point : acc), null);
+  const requirementsMet = meetsRequirements(variant, effective, twoHanded);
   const selectedBoss = bossPresets.find((b) => b.id === bossId)!;
   const dlcSources = [
     weapon.dlc ? `${weapon.name} — ${weapon.dlc === 'shadow-of-the-erdtree' ? 'Shadow of the Erdtree' : 'Tarnished Pack'}` : null,
@@ -67,15 +92,41 @@ export default function App() {
     setAffinity(next.variants[0].affinity);
     setUpgrade(next.maxUpgrade);
     setMode('weapon');
-    const axes = recommendAxes(next.variants[0].scaling);
-    setAxisX(axes[0] ?? 'str');
-    setAxisY(axes[1] ?? 'dex');
+    setAxisHistory(axisPair(recommendAxes(next.variants[0].scaling)));
   };
 
-  const applyRecommendedAxes = () => {
-    if (suggested[0]) setAxisX(suggested[0]);
-    if (suggested[1] && suggested[1] !== suggested[0]) setAxisY(suggested[1]);
+  const applyRecommendedAxes = () => setAxisHistory(axisPair(suggested));
+
+  const selectAxis = (stat: OffensiveStat) => {
+    setAxisHistory(([older, newer]) => {
+      if (stat === newer) return [older, newer];
+      if (stat === older) return [newer, older];
+      return [newer, stat];
+    });
   };
+
+  const meetWeaponRequirements = () => {
+    setStats((old) => {
+      const next = { ...old };
+      for (const [key, requirement] of Object.entries(variant.requirements) as [OffensiveStat, number][]) {
+        let effectiveNeeded = requirement ?? 0;
+        if (key === 'str' && twoHanded) effectiveNeeded = Math.ceil(effectiveNeeded / 1.5);
+        const baseNeeded = Math.max(selectedClass.stats[key], effectiveNeeded - (bonuses[key] ?? 0));
+        next[key] = Math.max(next[key], Math.min(99, baseNeeded));
+      }
+      return next;
+    });
+  };
+
+  const optimumStats = best ? offensiveStats
+    .filter((stat) => stat === axisX || stat === axisY || (variant.requirements[stat] ?? 0) > 0)
+    .map((stat) => {
+      if (stat === axisX) return { stat, value: best.x, note: stat === 'str' && twoHanded ? '2H' : '' };
+      if (stat === axisY) return { stat, value: best.y, note: stat === 'str' && twoHanded ? '2H' : '' };
+      const rawRequirement = variant.requirements[stat] ?? 0;
+      const minimum = stat === 'str' && twoHanded ? Math.ceil(rawRequirement / 1.5) : rawRequirement;
+      return { stat, value: Math.max(effective[stat], minimum), note: stat === 'str' && twoHanded ? '2H' : '' };
+    }) : [];
 
   return (
     <div className="app-shell">
@@ -85,7 +136,7 @@ export default function App() {
           <h1>Weapon Optimizer</h1>
         </div>
         <div className="header-badges">
-          <span className="badge muted">v0.1 foundation</span>
+          <span className="badge muted">v0.2 graph pass</span>
           {dlcSources.length > 0 && <span className="badge dlc" title={dlcSources.join('\n')}>DLC</span>}
         </div>
       </header>
@@ -111,9 +162,38 @@ export default function App() {
           <section>
             <div className="section-heading"><h2>Character</h2><span>RL {currentRuneLevel}</span></div>
             <label>Starting class<select value={classId} onChange={(e) => changeClass(e.target.value)}>{startingClasses.map((c) => <option key={c.id} value={c.id}>{c.name} — RL {c.runeLevel}</option>)}</select></label>
-            <div className="stat-grid">
-              {statOrder.map((stat) => <label key={stat} className="stat-input"><span>{labels[stat]}</span><input type="number" min={selectedClass.stats[stat]} max="99" value={stats[stat]} onChange={(e) => setStats({ ...stats, [stat]: Math.max(selectedClass.stats[stat], Math.min(99, Number(e.target.value) || selectedClass.stats[stat])) })} /><small>min {selectedClass.stats[stat]}{bonuses[stat] ? ` • +${bonuses[stat]}` : ''}</small></label>)}
+            <div className="stat-table" aria-label="Character stats">
+              {statOrder.map((stat) => {
+                const offensive = offensiveStats.includes(stat as OffensiveStat);
+                const selected = offensive && (stat === axisX || stat === axisY);
+                const axis = stat === axisX ? 'X' : stat === axisY ? 'Y' : null;
+                return (
+                  <div className={`stat-row ${selected ? 'axis-selected' : ''}`} key={stat}>
+                    {offensive ? (
+                      <button className="stat-name-button" onClick={() => selectAxis(stat as OffensiveStat)} title="Use as one of the two graph axes">
+                        <span>{labels[stat]}</span>{axis && <b>{axis}</b>}
+                      </button>
+                    ) : <div className="stat-name-static">{labels[stat]}</div>}
+                    <div className="stat-value-cell">
+                      <StatValueInput
+                        value={stats[stat]}
+                        min={selectedClass.stats[stat]}
+                        onCommit={(value) => setStats((old) => ({ ...old, [stat]: value }))}
+                      />
+                      <small>min {selectedClass.stats[stat]}{bonuses[stat] ? ` • +${bonuses[stat]} gear` : ''}</small>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+            <div className="requirement-box">
+              <div>
+                <span className={requirementsMet ? 'requirement-ok' : 'requirement-warning'}>{requirementsMet ? '✓ Requirements met' : 'Requirements not met'}</span>
+                <small>{formatRequirements(variant.requirements, twoHanded)}</small>
+              </div>
+              <button onClick={meetWeaponRequirements} disabled={requirementsMet}>{requirementsMet ? 'Met' : 'Meet requirements'}</button>
+            </div>
+            <p className="axis-hint">Click an offensive stat name to make it a graph axis. The two most recent selections are kept; the higher row is always X.</p>
           </section>
 
           <section>
@@ -132,19 +212,32 @@ export default function App() {
           <div className="panel graph-panel">
             <div className="graph-header">
               <div><p className="eyebrow">STAT SPACE</p><h2>{weapon.name} {affinity !== 'Unique' ? `• ${affinity}` : ''} +{upgrade}</h2></div>
-              <div className="axis-controls">
-                <label>X<select value={axisX} onChange={(e) => setAxisX(e.target.value as OffensiveStat)}>{offensiveStats.filter((s) => s !== axisY).map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}</select></label>
-                <label>Y<select value={axisY} onChange={(e) => setAxisY(e.target.value as OffensiveStat)}>{offensiveStats.filter((s) => s !== axisX).map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}</select></label>
-              </div>
+              <div className="axis-summary"><span>X</span>{axisX.toUpperCase()}<span>Y</span>{axisY.toUpperCase()}</div>
             </div>
+
+            <div className="graph-mode-toggle segmented">
+              <button className={graphMode === 'current' ? 'active' : ''} onClick={() => setGraphMode('current')}>From my current build</button>
+              <button className={graphMode === 'full' ? 'active' : ''} onClick={() => setGraphMode('full')}>Full 1–99 stat map</button>
+            </div>
+
             <div className="recommendation-row"><span>Recommended axes: <strong>{suggested.map((s) => s.toUpperCase()).join(' + ') || 'None'}</strong></span><button onClick={applyRecommendedAxes}>Use recommended</button></div>
-            <div className="budget-row"><label>Points to distribute between axes<input type="number" min="0" max="180" value={pointsAvailable} onChange={(e) => setPointsAvailable(Math.max(0, Math.min(180, Number(e.target.value) || 0)))} /></label><span>Effective starting stats: {axisX.toUpperCase()} {effective[axisX]}, {axisY.toUpperCase()} {effective[axisY]}</span></div>
-            <Heatmap points={map} line={line} axisX={axisX} axisY={axisY} />
+            <div className="budget-row">
+              <label>Points to distribute between axes<input type="number" min="0" max="180" value={pointsAvailable} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setPointsAvailable(Math.max(0, Math.min(180, Number(e.target.value) || 0)))} /></label>
+              <span>{graphMode === 'full' ? `Full map shown; budget line starts at effective ${axisX.toUpperCase()} ${effective[axisX]} / ${axisY.toUpperCase()} ${effective[axisY]}.` : `Reachable space from effective ${axisX.toUpperCase()} ${effective[axisX]} / ${axisY.toUpperCase()} ${effective[axisY]}.`}</span>
+            </div>
+            <Heatmap points={map} line={line} axisX={axisX} axisY={axisY} affinity={variant.affinity} somber={weapon.somber} />
           </div>
 
           <div className="results-grid">
-            <div className="panel result-card hero-result"><p className="eyebrow">MATHEMATICAL OPTIMUM</p>{best ? <><div className="result-value">{best.value.toFixed(1)}</div><p>{axisX.toUpperCase()} <strong>{best.x}</strong> / {axisY.toUpperCase()} <strong>{best.y}</strong></p><small>{pointsAvailable} points distributed • {mode === 'skill' ? weapon.skill?.name : 'weapon AR'} model</small></> : <p>No valid allocation.</p>}</div>
-            <div className="panel result-card"><p className="eyebrow">BUILD CONTEXT</p><dl><div><dt>Starting class</dt><dd>{selectedClass.name}</dd></div><div><dt>Current RL</dt><dd>{currentRuneLevel}</dd></div><div><dt>Enemy</dt><dd>{selectedBoss.name}</dd></div><div><dt>Dataset</dt><dd>{weapon.dataStatus === 'verified' ? 'Verified' : 'Demo'}</dd></div></dl></div>
+            <div className="panel result-card hero-result">
+              <p className="eyebrow">MATHEMATICAL OPTIMUM ON BUDGET LINE</p>
+              {best ? <>
+                <div className="result-value">{best.value.toFixed(1)}</div>
+                <div className="optimal-stat-list">{optimumStats.map(({ stat, value, note }) => <span key={stat}><b>{stat.toUpperCase()}</b> {value}{note ? <small>{note}</small> : null}</span>)}</div>
+                <small>{pointsAvailable} points distributed between {axisX.toUpperCase()} / {axisY.toUpperCase()} • other weapon requirements shown at least at their required value</small>
+              </> : <p>No valid allocation on this budget line. Meet the weapon requirements or increase the point budget.</p>}
+            </div>
+            <div className="panel result-card"><p className="eyebrow">BUILD CONTEXT</p><dl><div><dt>Starting class</dt><dd>{selectedClass.name}</dd></div><div><dt>Current RL</dt><dd>{currentRuneLevel}</dd></div><div><dt>Enemy</dt><dd>{selectedBoss.name}</dd></div><div><dt>Graph</dt><dd>{graphMode === 'full' ? 'Full 1–99 map' : 'Current build'}</dd></div><div><dt>Dataset</dt><dd>{weapon.dataStatus === 'verified' ? 'Verified' : 'Demo'}</dd></div></dl></div>
           </div>
         </section>
       </main>
@@ -154,4 +247,51 @@ export default function App() {
 
 function floorToClass(stats: Stats, floor: Stats): Stats {
   return Object.fromEntries((Object.keys(stats) as Stat[]).map((key) => [key, Math.max(stats[key], floor[key])])) as Stats;
+}
+
+function axisPair(recommended: OffensiveStat[]): AxisHistory {
+  const first = recommended[0] ?? 'str';
+  const second = recommended.find((stat) => stat !== first) ?? offensiveStats.find((stat) => stat !== first) ?? 'dex';
+  return [first, second];
+}
+
+function formatRequirements(requirements: Partial<Record<OffensiveStat, number>>, twoHanded: boolean) {
+  const parts = (Object.entries(requirements) as [OffensiveStat, number][]).map(([stat, value]) => {
+    if (stat === 'str' && twoHanded) return `${stat.toUpperCase()} ${Math.ceil(value / 1.5)} (2H; ${value} req.)`;
+    return `${stat.toUpperCase()} ${value}`;
+  });
+  return parts.length ? parts.join(' • ') : 'No stat requirements';
+}
+
+function StatValueInput({ value, min, onCommit }: { value: number; min: number; onCommit: (value: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => setDraft(String(value)), [value]);
+
+  const commit = () => {
+    const parsed = Number(draft);
+    const next = Number.isFinite(parsed) ? Math.max(min, Math.min(99, Math.round(parsed))) : value;
+    onCommit(next);
+    setDraft(String(next));
+  };
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={99}
+      value={draft}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') {
+          setDraft(String(value));
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
 }

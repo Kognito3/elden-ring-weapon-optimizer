@@ -2,6 +2,7 @@ import type { AllocationPoint, OffensiveStat, Stats, WeaponVariant, SkillProfile
 import { scalingContribution } from './scaling';
 
 export type OptimizeMode = 'weapon' | 'skill';
+export type GraphMode = 'current' | 'full';
 
 export function effectiveStats(base: Stats, bonuses: Partial<Record<keyof Stats, number>>): Stats {
   const out = { ...base };
@@ -38,7 +39,7 @@ export function calculateValue(
 }
 
 export function recommendAxes(profile: ScalingProfile): OffensiveStat[] {
-  return (Object.entries(profile) as [OffensiveStat, number][]) 
+  return (Object.entries(profile) as [OffensiveStat, number][])
     .filter(([, value]) => (value ?? 0) > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
@@ -73,7 +74,8 @@ export function allocationLine(input: OptimizeInput): AllocationPoint[] {
   return result;
 }
 
-export function heatmap(input: OptimizeInput): AllocationPoint[] {
+/** Reachable stat space from the user's current effective stats using up to N points. */
+export function currentBuildHeatmap(input: OptimizeInput): AllocationPoint[] {
   const points: AllocationPoint[] = [];
   const minX = input.stats[input.axisX];
   const minY = input.stats[input.axisY];
@@ -86,6 +88,20 @@ export function heatmap(input: OptimizeInput): AllocationPoint[] {
       const candidate = { ...input.stats, [input.axisX]: x, [input.axisY]: y };
       const value = calculateValue(input.mode, input.variant, input.skill, candidate, input.upgrade, input.maxUpgrade, input.twoHanded);
       points.push({ x, y, value, valid: meetsRequirements(input.variant, candidate, input.twoHanded) });
+    }
+  }
+  return points;
+}
+
+/** Full 1–99 × 1–99 stat map. Non-axis stats stay fixed at the user's entered values. */
+export function fullStatHeatmap(input: OptimizeInput): AllocationPoint[] {
+  const points: AllocationPoint[] = [];
+  for (let x = 1; x <= 99; x += 1) {
+    for (let y = 1; y <= 99; y += 1) {
+      const candidate = { ...input.stats, [input.axisX]: x, [input.axisY]: y };
+      const valid = meetsRequirements(input.variant, candidate, input.twoHanded);
+      const value = calculateValue(input.mode, input.variant, input.skill, candidate, input.upgrade, input.maxUpgrade, input.twoHanded);
+      points.push({ x, y, value, valid });
     }
   }
   return points;

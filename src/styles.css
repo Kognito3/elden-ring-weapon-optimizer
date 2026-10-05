@@ -93,3 +93,41 @@ dt { color: #858a80; font-size: .75rem; } dd { margin: 0; color: #ddd4bf; font-s
 .empty-graph { min-height: 440px; display: grid; place-items: center; color: #7e8278; }
 @media (max-width: 1050px) { .layout { grid-template-columns: 1fr; } .controls { position: static; max-height: none; } }
 @media (max-width: 680px) { .app-shell { padding: 12px; } .topbar, .graph-header, .recommendation-row, .budget-row { align-items: stretch; flex-direction: column; } .topbar { display: flex; } .stat-grid { grid-template-columns: repeat(2, 1fr); } .results-grid { grid-template-columns: 1fr; } .equipment-list { columns: 1; } .axis-controls { width: 100%; } .axis-controls label { flex: 1; } .heatmap { min-height: 330px; } }
+
+/* v0.2 stat/graph refinements */
+.stat-table { display: grid; border: 1px solid #34372f; border-radius: 10px; overflow: hidden; background: rgba(10, 12, 10, .35); }
+.stat-row { display: grid; grid-template-columns: minmax(96px, 1fr) 112px; align-items: center; min-height: 55px; border-bottom: 1px solid #2e312a; transition: background .15s ease; }
+.stat-row:last-child { border-bottom: 0; }
+.stat-row.axis-selected { background: rgba(199, 169, 106, .07); }
+.stat-name-static, .stat-name-button { min-height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: #d9d2c1; font-weight: 750; letter-spacing: .07em; }
+.stat-name-static { color: #777d72; }
+.stat-name-button { appearance: none; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.stat-name-button:hover { background: rgba(255,255,255,.035); color: #f0e4c5; }
+.stat-name-button b { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #7a6840; border-radius: 6px; color: #f3d98f; font-size: .68rem; background: #2a261b; }
+.stat-value-cell { display: grid; gap: 2px; padding: 6px 8px 6px 2px; }
+.stat-value-cell input { text-align: right; padding: 7px 9px; }
+.stat-value-cell small { text-align: right; color: #777d72; font-size: .6rem; white-space: nowrap; }
+.axis-hint { margin: 9px 2px 0; color: #777d72; font-size: .66rem; line-height: 1.45; }
+.requirement-box { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; padding: 9px 10px; border: 1px solid #34372f; border-radius: 9px; background: #11130f; }
+.requirement-box > div { display: grid; gap: 3px; min-width: 0; }
+.requirement-box small { color: #777d72; font-size: .63rem; line-height: 1.35; }
+.requirement-box button { flex: 0 0 auto; border: 1px solid #575240; color: #d7c69c; background: transparent; border-radius: 7px; padding: 7px 9px; font-size: .7rem; }
+.requirement-box button:disabled { color: #71766d; border-color: #34372f; cursor: default; }
+.requirement-ok { color: #a9c89a; font-size: .7rem; font-weight: 700; }
+.requirement-warning { color: #d7b37e; font-size: .7rem; font-weight: 700; }
+.axis-summary { display: grid; grid-template-columns: auto auto auto auto; align-items: center; gap: 6px; color: #e4d8b9; font-size: .8rem; font-weight: 750; letter-spacing: .06em; }
+.axis-summary span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid #5d543d; color: var(--gold); font-size: .64rem; background: #191913; }
+.graph-mode-toggle { max-width: 460px; margin: 16px 0 0; }
+.graph-mode-toggle button { padding: 8px 12px; }
+.allocation-dot.invalid { fill: #3b3d38; stroke: #a5a69d; opacity: .75; }
+.optimal-stat-list { display: flex; flex-wrap: wrap; gap: 7px; margin: 9px 0 12px; }
+.optimal-stat-list span { display: inline-flex; align-items: baseline; gap: 5px; padding: 7px 9px; border-radius: 8px; background: rgba(10, 12, 10, .35); border: 1px solid #4a4638; color: #eadfc2; font-size: .78rem; }
+.optimal-stat-list b { color: #c8ad70; font-size: .66rem; letter-spacing: .08em; }
+.optimal-stat-list small { color: #8fa6b4; font-size: .58rem; margin-left: 1px; }
+
+@media (max-width: 680px) {
+  .stat-row { grid-template-columns: minmax(88px, 1fr) 104px; }
+  .requirement-box { align-items: stretch; flex-direction: column; }
+  .requirement-box button { width: 100%; }
+  .axis-summary { align-self: flex-start; }
+}
