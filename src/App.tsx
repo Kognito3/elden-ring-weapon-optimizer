@@ -76,7 +76,7 @@ function OptimizerApp({ weapons, configurationCount }: { weapons: Weapon[]; conf
   const weapon = weapons.find((w) => w.id === weaponId) ?? initialWeapon;
   const [affinity, setAffinity] = useState<Affinity>(weapon.variants[0].affinity);
   const variant = weapon.variants.find((v) => v.affinity === affinity) ?? weapon.variants[0];
-  const [upgrade, setUpgrade] = useState(weapon.maxUpgrade);
+  const [upgrade, setUpgrade] = useState<number>(weapon.maxUpgrade);
   const [mode, setMode] = useState<OptimizeMode>('weapon');
   const [graphMode, setGraphMode] = useState<GraphMode>('current');
   const [twoHanded, setTwoHanded] = useState(false);
