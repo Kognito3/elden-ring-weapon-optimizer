@@ -1,5 +1,6 @@
-import type { AllocationPoint, OffensiveStat, Stats, WeaponVariant, SkillProfile, ScalingProfile } from '../types';
-import { scalingContribution } from './scaling';
+import type { AllocationPoint, OffensiveStat, Stats, WeaponVariant, SkillProfile } from '../types';
+import { getWeaponAttack, totalAttackRating } from '../game/calculator';
+import type { Attributes } from '../game/types';
 
 export type OptimizeMode = 'weapon' | 'skill';
 export type GraphMode = 'current' | 'full';
@@ -12,12 +13,24 @@ export function effectiveStats(base: Stats, bonuses: Partial<Record<keyof Stats,
   return out;
 }
 
+function offensiveAttributes(stats: Stats): Attributes {
+  return {
+    str: stats.str,
+    dex: stats.dex,
+    int: stats.int,
+    fai: stats.fai,
+    arc: stats.arc,
+  };
+}
+
 export function meetsRequirements(variant: WeaponVariant, stats: Stats, twoHanded: boolean): boolean {
-  return Object.entries(variant.requirements).every(([key, req]) => {
-    const stat = key as OffensiveStat;
-    const value = stat === 'str' && twoHanded ? Math.floor(stats.str * 1.5) : stats[stat];
-    return value >= (req ?? 0);
+  const result = getWeaponAttack({
+    weapon: variant.gameWeapon,
+    attributes: offensiveAttributes(stats),
+    twoHanding: twoHanded,
+    upgradeLevel: Math.min(variant.gameWeapon.attack.length - 1, 0),
   });
+  return result.ineffectiveAttributes.length === 0;
 }
 
 export function calculateValue(
@@ -26,24 +39,26 @@ export function calculateValue(
   skill: SkillProfile | undefined,
   stats: Stats,
   upgrade: number,
-  maxUpgrade: number,
+  _maxUpgrade: number,
   twoHanded: boolean,
 ): number {
-  const upgradeRatio = maxUpgrade === 0 ? 1 : upgrade / maxUpgrade;
-  const upgradeMultiplier = 0.58 + 0.42 * upgradeRatio;
+  // Skill formula support is the next engine layer. Until a weapon has a verified skill profile,
+  // the skill button is disabled in the UI. Keeping this branch makes that addition non-breaking.
   if (mode === 'skill' && skill) {
-    return skill.basePower * upgradeMultiplier * (1 + scalingContribution(skill.scaling, stats));
+    const scaling = Object.entries(skill.scaling).reduce((sum, [stat, coefficient]) => {
+      const value = stats[stat as OffensiveStat] ?? 1;
+      return sum + (coefficient ?? 0) * Math.max(0, value - 1) / 98;
+    }, 0);
+    return skill.basePower * (1 + scaling);
   }
-  const requirementPenalty = meetsRequirements(variant, stats, twoHanded) ? 1 : 0.6;
-  return variant.baseAR * upgradeMultiplier * (1 + scalingContribution(variant.scaling, stats)) * requirementPenalty;
-}
 
-export function recommendAxes(profile: ScalingProfile): OffensiveStat[] {
-  return (Object.entries(profile) as [OffensiveStat, number][])
-    .filter(([, value]) => (value ?? 0) > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([stat]) => stat);
+  const attack = getWeaponAttack({
+    weapon: variant.gameWeapon,
+    attributes: offensiveAttributes(stats),
+    twoHanding: twoHanded,
+    upgradeLevel: Math.min(upgrade, variant.gameWeapon.attack.length - 1),
+  });
+  return totalAttackRating(attack.attackPower);
 }
 
 export interface OptimizeInput {

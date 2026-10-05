@@ -146,7 +146,7 @@ export default function Heatmap({ points, line, axisX, axisY, affinity, somber }
         <span className="legend-invalid">▧ Requirements unmet</span>
       </div>
       <div className={`hover-readout ${hover ? 'active' : ''}`}>
-        {hover ? <><strong>{statLabel(axisX)} {hover.x} / {statLabel(axisY)} {hover.y}</strong><span>{hover.valid ? hover.value.toFixed(1) : 'Requirements unmet'}</span></> : <span>Hover the heatmap or allocation line for exact values.</span>}
+        {hover ? <><strong>{statLabel(axisX)} {hover.x} / {statLabel(axisY)} {hover.y}</strong><span>{hover.valid ? `${Math.floor(hover.value + 1e-9)} AR` : 'Requirements unmet'}</span></> : <span>Hover the heatmap or allocation line for exact values.</span>}
       </div>
     </div>
   );

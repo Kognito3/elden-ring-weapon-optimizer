@@ -1,31 +1,18 @@
 # Elden Ring Weapon Optimizer
 
-Early interactive foundation for a graphical Elden Ring weapon/stat optimizer.
+An interactive Elden Ring build tool for visualising weapon Attack Rating across two stats, drawing a fixed-point allocation line, and finding the mathematically best split.
 
-## Current v0.2 foundation
+## v0.3 — regulation data pass
 
-- React + TypeScript + Vite
-- Starting class stat floors (Wretch is the default)
-- Vertical stat editor with click-to-select offensive graph axes
-- Weapon, affinity and upgrade selection
-- Weapon AR / unique-skill optimization modes
-- Two-handing support
-- Equipment/stat-boost hooks
-- One-click “meet weapon requirements”
-- Two graph views:
-  - **From my current build** — reachable stat space from entered stats plus N points
-  - **Full 1–99 stat map** — the complete two-stat surface, with the same budget line overlaid
-- Requirements-unmet cells are grey/hatched and excluded from the valid colour scale
-- Affinity-aware, luminance-heavy heatmap palette designed to be easier to read with colour-vision deficiencies
-- Hoverable allocation points and exact outputs
-- Mathematical optimum highlighted on the current point-budget line
-- Optimal spread includes non-axis weapon requirements
-- DLC source badge hooks
-- Main-path and Shadow of the Erdtree boss quick-select UI
-
-## Important
-
-The UI and optimization flow are functional, but the current small weapon dataset uses **demo values**. The next major data pass is to replace those with regulation-derived weapon/affinity data and exact CalcCorrectGraph curves, followed by verified skill and enemy damage models.
+- Loads the current patch **1.17** regulation-derived weapon dataset at runtime.
+- Uses exact base attack, affinity, upgrade, attribute scaling, AttackElementCorrect and CalcCorrectGraph data.
+- Exact sheet-AR calculation replaces the v0.2 demo approximation.
+- Full weapon catalogue with affinities and upgrade levels.
+- Weapon search field.
+- Keeps both graph modes from v0.2: **From my current build** and **Full 1–99 stat map**.
+- Keeps starter classes, equipment stat bonuses, requirement handling, two-handing and budget-line optimisation.
+- Adds verified defense/negation profiles for the first set of main-path and DLC bosses.
+- Includes the PvE defense-curve code for the later hit-damage pass, but final enemy damage is deliberately not exposed yet because physical attack type + motion value must be selected first.
 
 ## Run locally
 
@@ -34,10 +21,8 @@ npm install
 npm run dev
 ```
 
-Open the local URL Vite prints in the terminal (normally `http://localhost:5173`).
+## Data notes
 
-## Build
+The weapon engine/data format is adapted from Tom Clark's MIT-licensed Elden Ring Weapon Calculator. See `THIRD_PARTY_NOTICES.md`.
 
-```bash
-npm run build
-```
+This v0.3 build fetches the patch 1.17 dataset from the upstream GitHub raw file when the app starts. A bundled/offline snapshot can be added later for PWA/offline use.

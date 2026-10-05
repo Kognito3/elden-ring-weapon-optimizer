@@ -1,3 +1,5 @@
+import type { GameWeapon } from './game/types';
+
 export type OffensiveStat = 'str' | 'dex' | 'int' | 'fai' | 'arc';
 export type Stat = 'vig' | 'mnd' | 'end' | OffensiveStat;
 
@@ -36,10 +38,10 @@ export interface ScalingProfile {
 }
 
 export interface WeaponVariant {
+  affinityId: number;
   affinity: Affinity;
-  baseAR: number;
-  scaling: ScalingProfile;
   requirements: Partial<Record<OffensiveStat, number>>;
+  gameWeapon: GameWeapon;
 }
 
 export interface SkillProfile {
